@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>Control de Pallets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsqr/1.4.0/jsQR.js"></script>
+<style>
+  /* TEMA BLANCO Y NEGRO MINIMALISTA */
+  :root{
+    --bg: #F4F4F5;          
+    --panel: #FFFFFF;       
+    --panel-2: #E4E4E7;     
+    --line: #D4D4D8;        
+    --text: #18181B;        
+    --muted: #71717A;       
+    --accent: #000000;      
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;height:100%;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;overflow:hidden;}
+  #app{width:100%;height:100%;display:flex;flex-direction:column;}
+  
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--panel);border-bottom:1px solid var(--line);flex-shrink:0;}
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand .dot{width:12px;height:12px;background:var(--accent);}
+  .brand span{font-family:'Oswald',sans-serif;font-weight:700;letter-spacing:.04em;text-transform:uppercase;font-size:15px;color:var(--accent);}
+  .who{font-size:13px;color:var(--muted);text-align:right;}
+  .who b{color:var(--text);font-weight:600;}
+  .badge-role{display:inline-block;margin-left:6px;padding:2px 8px;border-radius:4px;background:var(--panel-2);border:1px solid var(--line);font-size:11px;color:var(--text);font-family:'JetBrains Mono',monospace;font-weight:600;}
+  
+  .screen{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:16px;}
+  
+  .pin-wrap{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;}
+  .pin-title{font-family:'Oswald',sans-serif;font-size:22px;text-transform:uppercase;letter-spacing:.06em;color:var(--text);}
+  .pin-dots{display:flex;gap:14px;height:18px;}
+  .pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);transition:.15s;}
+  .pin-dot.filled{background:var(--accent);border-color:var(--accent);}
+  .pin-dot.err{background:transparent;border-color:var(--accent);border-style:dashed;}
+  .keypad{display:grid;grid-template-columns:repeat(3,84px);gap:14px;}
+  .key{width:84px;height:64px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;display:flex;align-items:center;justify-content:center;user-select:none;box-shadow: 0 2px 0 var(--line);}
+  .key:active{background:var(--panel-2);transform:translateY(2px);box-shadow:none;}
+  .key.wide{grid-column:span 1;font-family:'Inter';font-size:13px;color:var(--text);}
+  .pin-error{color:var(--text);font-size:13px;height:16px;font-weight:600;}
+  
+  .menu-grid{display:flex;flex-direction:column;gap:12px;max-width:480px;margin:0 auto;width:100%;}
+  .menu-btn{display:flex;align-items:center;gap:14px;padding:18px;border-radius:8px;background:var(--panel);border:1px solid var(--line);text-align:left;box-shadow: 0 2px 0 var(--line);}
+  .menu-btn .ic{width:40px;height:40px;border-radius:6px;background:var(--panel-2);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0;color:var(--accent);}
+  .menu-btn .lbl{font-weight:700;font-size:15px;color:var(--text);}
+  .menu-btn .sub{font-size:12px;color:var(--muted);margin-top:2px;}
+  .menu-btn.primary{border-color:var(--accent);border-width:2px;box-shadow: 0 2px 0 var(--accent);}
+  .menu-btn.primary .ic{background:var(--accent);color:#fff;}
+  .menu-btn:active{background:var(--panel-2);transform:translateY(2px);box-shadow:none;}
+  .logout{margin-top:8px;text-align:center;color:var(--muted);font-size:13px;padding:10px;text-decoration:underline;}
+  
+  .cam-frame{position:relative;width:100%;max-width:480px;margin:0 auto;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:#000;border:2px solid var(--accent);}
+  #scanner-video, #scanner-video video, #scanner-video canvas{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;}
+  .scan-overlay{position:absolute;inset:0;pointer-events:none;display:flex;align-items:center;justify-content:center;}
+  .scan-box{width:78%;height:46%;position:relative;}
+  .corner{position:absolute;width:26px;height:26px;border-color:var(--panel);}
+  .corner.tl{top:0;left:0;border-top:4px solid var(--panel);border-left:4px solid var(--panel);}
+  .corner.tr{top:0;right:0;border-top:4px solid var(--panel);border-right:4px solid var(--panel);}
+  .corner.bl{bottom:0;left:0;border-bottom:4px solid var(--panel);border-left:4px solid var(--panel);}
+  .corner.br{bottom:0;right:0;border-bottom:4px solid var(--panel);border-right:4px solid var(--panel);}
+  .sweep{position:absolute;left:2%;right:2%;height:2px;background:var(--panel);animation:sweep 2s ease-in-out infinite;box-shadow: 0 0 8px #fff;}
+  @keyframes sweep{0%{top:6%;}50%{top:92%;}100%{top:6%;}}
+  .scan-hint{text-align:center;color:var(--muted);font-size:13px;margin-top:12px;}
+  .manual-row{display:flex;gap:8px;max-width:480px;margin:6px auto 0;width:100%;}
+  .manual-row input{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:14px;}
+  .cam-error{max-width:480px;margin:0 auto;background:var(--panel);border:2px dashed var(--text);border-radius:8px;padding:14px;font-size:13px;color:var(--text);font-weight:600;}
+  
+  .btn{border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-weight:700;font-size:14px;padding:14px;text-align:center;text-transform:uppercase;letter-spacing:.03em;}
+  .btn:active{background:var(--panel-2);}
+  .btn.amber{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .btn.green{background:var(--panel);color:var(--text);border:2px solid var(--accent);}
+  .btn.red{background:transparent;color:var(--text);border:2px dashed var(--text);}
+  .btn.ghost{background:transparent;color:var(--muted);border-color:transparent;}
+  .btn-row{display:flex;gap:10px;max-width:480px;margin:0 auto;width:100%;}
+  .btn-row .btn{flex:1;}
+  
+  .card{max-width:480px;margin:0 auto;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:18px;}
+  .code-tag{font-family:'JetBrains Mono',monospace;color:var(--text);background:var(--panel-2);padding:4px 8px;border-radius:4px;font-size:13px;letter-spacing:.03em;display:inline-block;}
+  .product-title{font-family:'Oswald',sans-serif;font-size:24px;margin:8px 0 4px;color:var(--accent);}
+  .meta-row{display:flex;justify-content:space-between;padding:10px 0;border-top:1px solid var(--line);font-size:13px;}
+  .meta-row span:first-child{color:var(--muted);text-transform:uppercase;font-size:11px;letter-spacing:.05em;}
+  .meta-row span:last-child{font-weight:600;}
+  .state-pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:4px;background:var(--panel-2);border:1px solid var(--line);font-size:12px;font-weight:700;}
+  .state-pill .d{width:8px;height:8px;background:var(--accent);}
+  .flow{display:flex;align-items:center;gap:6px;margin:16px 0;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .flow .step{padding:4px 8px;border-radius:4px;background:var(--panel-2);border:1px solid transparent;}
+  .flow .step.active{background:var(--accent);color:#fff;font-weight:700;}
+  .flow .arrow{color:var(--line);}
+  
+  .toast-wrap{position:fixed;inset:0;background:rgba(24,24,27,.8);display:flex;align-items:center;justify-content:center;z-index:50;}
+  .toast{background:var(--panel);border:2px solid var(--accent);border-radius:8px;padding:28px;text-align:center;max-width:360px;width:88%;box-shadow: 0 8px 24px rgba(0,0,0,0.15);}
+  .toast .icon{width:56px;height:56px;border-radius:50%;margin:0 auto 12px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--panel-2);color:var(--accent);border:2px solid var(--accent);}
+  .toast h3{margin:0 0 4px;font-family:'Oswald',sans-serif;font-size:20px;text-transform:uppercase;}
+  .toast p{margin:0;color:var(--muted);font-size:13px;}
+  
+  .field{display:flex;flex-direction:column;gap:6px;max-width:480px;margin:0 auto;width:100%;}
+  .field label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+  .field input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:13px;color:var(--text);font-size:15px;transition:border-color .2s;}
+  .field input:focus{outline:none;border-color:var(--accent);}
+  
+  .hist-item{max-width:480px;margin:0 auto;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;justify-content:space-between;gap:10px;}
+  .hist-item .l .code{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);}
+  .hist-item .l .prod{font-size:14px;font-weight:700;margin-top:2px;color:var(--accent);}
+  .hist-item .l .who{font-size:12px;color:var(--muted);margin-top:2px;}
+  .hist-item .r{text-align:right;font-size:11px;color:var(--muted);font-weight:600;}
+  .hist-item.disc{border-style:dashed;border-color:var(--accent);background:var(--bg);}
+  .empty{max-width:480px;margin:40px auto;text-align:center;color:var(--muted);font-size:13px;}
+  
+  .section-title{font-family:'Oswald',sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:14px;color:var(--accent);max-width:480px;margin:0 auto;width:100%;border-bottom:2px solid var(--accent);padding-bottom:6px;}
+  .backrow{max-width:480px;margin:0 auto;width:100%;display:flex;align-items:center;gap:10px;color:var(--text);font-size:13px;padding-bottom:2px;font-weight:600;text-decoration:underline;cursor:pointer;}
+  .qr-box{display:flex;justify-content:center;padding:16px;background:#fff;border:1px solid var(--line);border-radius:8px;}
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getFirestore, doc, setDoc, collection, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+// --- CONFIGURACIÓN FIREBASE ---
+const firebaseConfig = {
+  projectId: "barras-33e7d",
+  apiKey: "TU_API_KEY_AQUÍ", // Reemplaza por tu API Key real de la consola
+  authDomain: "barras-33e7d.firebaseapp.com",
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const DEFAULT_WORKERS = [
+  {pin:'19938', name:'Carlos Ramírez', role:'Piqueador'},
+  {pin:'20214', name:'Ana Torres', role:'Bodeguera'},
+  {pin:'10453', name:'Miguel Soto', role:'Bodeguero'},
+];
+const FLOW = ['Creado','En bodega','En tránsito','Entregado'];
+
+let state = {
+  screen: 'pin',
+  pinInput: '',
+  pinError: false,
+  worker: null,
+  workers: DEFAULT_WORKERS,
+  pallets: [],
+  movements: [],
+  scanTarget: null,
+  scannedCodeUnknown: null,
+  toast: null,
+  quaggaRunning: false,
+  camError: null,
+};
+
+// ---------------- FIREBASE: FUNCIONES DE BASE DE DATOS ----------------
+async function loadDB(){
+  // Escucha los pallets en tiempo real
+  onSnapshot(collection(db, "pallets"), (snapshot) => {
+    state.pallets = [];
+    snapshot.forEach(doc => state.pallets.push(doc.data()));
+    render();
+  }, (err) => console.error("Error de conexión a Pallets:", err));
+
+  // Escucha los movimientos ordenados por tiempo
+  const q = query(collection(db, "movements"), orderBy("timestamp", "desc"));
+  onSnapshot(q, (snapshot) => {
+    state.movements = [];
+    snapshot.forEach(doc => state.movements.push(doc.data()));
+    render();
+  }, (err) => console.error("Error de conexión a Movimientos:", err));
+}
+
+async function saveDB(pallet, movement){
+  try {
+    if (pallet) {
+      await setDoc(doc(db, "pallets", pallet.code), pallet);
+    }
+    if (movement) {
+      const moveId = `${movement.palletId}_${movement.timestamp}`;
+      await setDoc(doc(db, "movements", moveId), movement);
+    }
+  } catch(e) { 
+    console.error('Fallo al guardar en Firestore:', e);
+    alert("Error de permisos: Asegúrate de haber publicado las Reglas de Seguridad en modo de prueba (allow read, write: if true;)");
+  }
+}
+
+// ---------------- LÓGICA DE APLICACIÓN ----------------
+function nextPalletId(){
+  const n = state.pallets.length + 1;
+  return 'PLT-2026-' + String(n).padStart(5,'0');
+}
+function findPallet(code){ return state.pallets.find(p => p.code === code) || null; }
+function nextState(current){
+  const i = FLOW.indexOf(current);
+  return i >= 0 && i < FLOW.length-1 ? FLOW[i+1] : current;
+}
+function fmtTime(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('es-CL',{day:'2-digit',month:'2-digit'}) + ' ' + d.toLocaleTimeString('es-CL',{hour:'2-digit',minute:'2-digit'});
+}
+function go(screen){ state.screen = screen; render(); }
+
+function pressKey(k){
+  if(state.pinInput.length >= 5) return;
+  state.pinInput += k;
+  state.pinError = false;
+  render();
+  if(state.pinInput.length === 5) checkPin();
+}
+function backspace(){ state.pinInput = state.pinInput.slice(0,-1); render(); }
+function checkPin(){
+  const w = state.workers.find(w => w.pin === state.pinInput);
+  if(w){
+    state.worker = w;
+    state.pinInput = '';
+    go('menu');
+  } else {
+    state.pinError = true;
+    render();
+    setTimeout(()=>{ state.pinInput=''; state.pinError=false; render(); }, 700);
+  }
+}
+function logout(){
+  stopScanner();
+  state.worker = null; state.pinInput=''; state.scanTarget=null; state.scannedCodeUnknown=null;
+  go('pin');
+}
+
+async function lookupPublicProduct(code){
+  if(!/^\d{8,14}$/.test(code)) return null;
+  try{
+    const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${code}.json`);
+    const data = await res.json();
+    if(data && data.status === 1 && data.product){
+      return {
+        name: data.product.product_name || data.product.generic_name || 'Producto detectado',
+        brand: data.product.brands || ''
+      };
+    }
+  }catch(e){}
+  return null;
+}
+
+async function onDetected(code){
+  if(!state.quaggaRunning) return;
+  stopScanner();
+  const p = findPallet(code);
+  if(p){
+    state.scanTarget = p;
+    go('pallet-detail');
+    return;
+  }
+  state.scannedCodeUnknown = code;
+  state.publicLookup = null;
+  state.lookingUp = true;
+  go('unknown-code');
+  const info = await lookupPublicProduct(code);
+  state.lookingUp = false;
+  if(state.screen === 'unknown-code'){
+    state.publicLookup = info;
+    render();
+  }
+}
+
+function manualSubmit(){
+  const el = document.getElementById('manual-code');
+  if(!el || !el.value.trim()) return;
+  onDetected(el.value.trim());
+}
+
+async function confirmAdvance(){
+  const p = state.scanTarget;
+  const from = p.state;
+  const to = nextState(from);
+  p.state = to; 
+
+  const movement = {
+    palletId: p.code, product: p.product, worker: state.worker.name, workerPin: state.worker.pin,
+    from, to, timestamp: Date.now(), discrepancy: false
+  };
+
+  await saveDB(p, movement);
+  showToast('ok', 'Movimiento registrado', p.product + ' → ' + to);
+}
+
+function goDiscrepancy(){ go('discrepancy'); }
+
+async function submitDiscrepancy(note){
+  const p = state.scanTarget;
+  const movement = {
+    palletId: p.code, product: p.product, worker: state.worker.name, workerPin: state.worker.pin,
+    from: p.state, to: p.state, timestamp: Date.now(), discrepancy: true, note: note || '(sin nota)'
+  };
+  
+  await saveDB(null, movement); // Null porque el pallet no cambia, solo se registra el evento
+  showToast('warn', 'Discrepancia registrada', 'Guardada en historial');
+}
+
+function showToast(kind, title, sub){
+  state.toast = {kind, title, sub};
+  render();
+  setTimeout(()=>{ state.toast=null; state.scanTarget=null; state.scannedCodeUnknown=null; go('menu'); }, 2000);
+}
+
+async function createPallet(prefillCode){
+  const product = document.getElementById('f-product').value.trim();
+  const qty = document.getElementById('f-qty').value.trim();
+  const loc = document.getElementById('f-loc').value.trim();
+  if(!product || !qty || !loc){ alert('Completar todos los campos'); return; }
+  const code = prefillCode || nextPalletId();
+  
+  const pallet = { code, product, qty, location: loc, state: 'Creado', createdAt: Date.now() };
+  const movement = {
+    palletId:code, product, worker:state.worker.name, workerPin:state.worker.pin,
+    from:'—', to:'Creado', timestamp: Date.now(), discrepancy:false
+  };
+
+  await saveDB(pallet, movement);
+  
+  state.scanTarget = pallet;
+  go('pallet-created');
+}
+
+function cameraErrorMessage(err){
+  const name = err && err.name;
+  if(name === 'NotAllowedError') return 'Permiso de cámara denegado en el navegador.';
+  if(name === 'NotFoundError') return 'No se encontró cámara en este dispositivo.';
+  if(name === 'NotReadableError') return 'La cámara está ocupada por otra app.';
+  return 'No se pudo acceder a la cámara. Revisa los permisos del navegador.';
+}
+
+function startScanner(){
+  state.camError = null;
+  state.camLoading = true;
+  render();
+
+  if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    state.camLoading = false;
+    state.camError = 'El navegador no soporta acceso a cámara en este contexto.';
+    render();
+    return;
+  }
+
+  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } } })
+    .then(function(stream){
+      stream.getTracks().forEach(t=>t.stop());
+      initQuagga();
+    })
+    .catch(function(err){
+      state.camLoading = false;
+      state.camError = cameraErrorMessage(err);
+      render();
+    });
+}
+
+function initQuagga(){
+  const target = document.getElementById('scanner-video');
+  if(!target || typeof Quagga === 'undefined'){
+    state.camLoading = false;
+    state.camError = 'Error cargando motor de escaneo.';
+    render();
+    return;
+  }
+  
+  Quagga.init({
+    inputStream: { 
+      type: 'LiveStream', 
+      target: target, 
+      constraints: { 
+        facingMode: 'environment',
+        width: { ideal: 1280 },  
+        height: { ideal: 720 }
+      } 
+    },
+    locator: {
+      patchSize: 'medium', 
+      halfSample: true
+    },
+    numOfWorkers: navigator.hardwareConcurrency || 2, 
+    decoder: { 
+      readers: ['ean_reader', 'code_128_reader'] 
+    },
+    locate: true
+  }, function(err){
+    state.camLoading = false;
+    if(err){
+      state.camError = cameraErrorMessage(err);
+      render();
+      return;
+    }
+    Quagga.start();
+    state.quaggaRunning = true;
+    const videoEl = target.querySelector('video');
+    if(videoEl){
+      videoEl.setAttribute('playsinline', 'true');
+      videoEl.setAttribute('webkit-playsinline', 'true');
+      videoEl.muted = true;
+      videoEl.play && videoEl.play().catch(()=>{});
+    }
+    const statusEl = document.getElementById('scan-status');
+    if(statusEl) statusEl.textContent = 'Buscando código... (Enfoca a 15-20cm)';
+    startQrPolling(target);
+  });
+  
+  Quagga.offDetected();
+  Quagga.onDetected(function(result){
+    const code = result && result.codeResult && result.codeResult.code;
+    if(code) onDetected(code);
+  });
+}
+
+function startQrPolling(target, attempt){
+  attempt = attempt || 0;
+  const videoEl = target.querySelector('video');
+  if(!videoEl){
+    if(attempt < 20) setTimeout(()=>startQrPolling(target, attempt+1), 150);
+    return;
+  }
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  state.qrInterval = setInterval(()=>{
+    if(!state.quaggaRunning || !videoEl.videoWidth) return;
+    canvas.width = videoEl.videoWidth;
+    canvas.height = videoEl.videoHeight;
+    ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const result = jsQR(imgData.data, canvas.width, canvas.height);
+    if(result && result.data) onDetected(result.data);
+  }, 350);
+}
+
+function stopScanner(){
+  if(state.quaggaRunning){
+    try{ Quagga.stop(); }catch(e){}
+    state.quaggaRunning = false;
+  }
+  if(state.qrInterval){ clearInterval(state.qrInterval); state.qrInterval = null; }
+}
+
+function render(){
+  const root = document.getElementById('app');
+  root.innerHTML = topbarHTML() + screenHTML() + (state.toast ? toastHTML() : '');
+  wireEvents();
+}
+
+function topbarHTML(){
+  if(state.screen === 'pin') return '';
+  return `
+  <div class="topbar">
+    <div class="brand"><div class="dot"></div><span>Control Pallets</span></div>
+    <div class="who">${state.worker ? `<b>${state.worker.name}</b><span class="badge-role">${state.worker.role}</span>` : ''}</div>
+  </div>`;
+}
+
+function screenHTML(){
+  switch(state.screen){
+    case 'pin': return pinHTML();
+    case 'menu': return menuHTML();
+    case 'scan': return scanHTML();
+    case 'unknown-code': return unknownHTML();
+    case 'pallet-detail': return palletDetailHTML();
+    case 'discrepancy': return discrepancyHTML();
+    case 'create-pallet': return createPalletHTML(window.__prefillCode || null, window.__prefillProduct || null);
+    case 'pallet-created': return palletCreatedHTML();
+    case 'history': return historyHTML();
+    default: return '';
+  }
+}
+
+function pinHTML(){
+  const dots = Array.from({length:5}).map((_,i)=>{
+    const filled = i < state.pinInput.length;
+    return `<div class="pin-dot ${filled?(state.pinError?'err':'filled'):''}"></div>`;
+  }).join('');
+  const keys = ['1','2','3','4','5','6','7','8','9','','0','⌫'];
+  const keysHTML = keys.map(k=>{
+    if(k==='') return `<div></div>`;
+    if(k==='⌫') return `<div class="key wide" data-back="1">BORRAR</div>`;
+    return `<div class="key" data-key="${k}">${k}</div>`;
+  }).join('');
+  return `
+  <div class="screen"><div class="pin-wrap">
+    <div class="pin-title">Ingresa tu PIN</div>
+    <div class="pin-dots">${dots}</div>
+    <div class="pin-error">${state.pinError ? 'PIN INCORECTO' : ''}</div>
+    <div class="keypad">${keysHTML}</div>
+  </div></div>`;
+}
+
+function menuHTML(){
+  return `
+  <div class="screen">
+    <div class="menu-grid">
+      <div class="menu-btn primary" data-go="scan">
+        <div class="ic">📷</div>
+        <div><div class="lbl">ESCANEAR PALLET</div><div class="sub">Leer código de barras o QR</div></div>
+      </div>
+      <div class="menu-btn" data-go="create-pallet">
+        <div class="ic">➕</div>
+        <div><div class="lbl">CREAR PALLET NUEVO</div><div class="sub">Generar e imprimir etiqueta</div></div>
+      </div>
+      <div class="menu-btn" data-go="history">
+        <div class="ic">🕘</div>
+        <div><div class="lbl">HISTORIAL GENERAL</div><div class="sub">${state.movements.length} movimientos en la nube</div></div>
+      </div>
+      <div class="logout" data-logout="1">Cerrar sesión</div>
+    </div>
+  </div>`;
+}
+
+function scanHTML(){
+  return `
+  <div class="screen">
+    <div class="section-title">Apunta la cámara al código</div>
+    <div class="cam-frame">
+      <div id="scanner-video"></div>
+      <div class="scan-overlay">
+        <div class="scan-box">
+          <div class="corner tl"></div><div class="corner tr"></div>
+          <div class="corner bl"></div><div class="corner br"></div>
+          <div class="sweep"></div>
+        </div>
+      </div>
+    </div>
+    ${state.camError ? `<div class="cam-error">${state.camError}</div>
+      <div class="btn-row"><div class="btn amber" data-action="retry-cam">Reintentar cámara</div></div>`
+      : `<div class="scan-hint" id="scan-status">${state.camLoading ? 'Iniciando cámara HD...' : 'Buscando código... (Enfoca a 15-20cm)'}</div>`}
+    <div class="manual-row">
+      <input id="manual-code" placeholder="o escribe el código a mano" />
+      <div class="btn amber" data-manual="1" style="max-width:90px;">BUSCAR</div>
+    </div>
+    <div class="btn-row"><div class="btn ghost" data-go="menu">CANCELAR Y VOLVER</div></div>
+  </div>`;
+}
+
+function unknownHTML(){
+  const lookup = state.publicLookup;
+  return `
+  <div class="screen">
+    <div class="card" style="text-align:center;">
+      <div class="code-tag">${state.scannedCodeUnknown}</div>
+      <div class="product-title">CÓDIGO LEÍDO</div>
+      <p style="color:var(--muted);font-size:13px;">Este código no está registrado en el inventario actual.</p>
+      ${lookup ? `
+        <div style="margin-top:16px;padding:12px;background:var(--bg);border-radius:6px;text-align:left;border:1px solid var(--line);">
+          <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700;">Producto detectado:</div>
+          <div style="font-weight:700;font-size:15px;margin-top:4px;color:var(--text);">${lookup.name}</div>
+        </div>
+      ` : ''}
+    </div>
+    <div class="btn-row">
+      <div class="btn red" data-go="scan">REINTENTAR</div>
+      <div class="btn amber" data-go="create-with-code">REGISTRAR PALLET</div>
+    </div>
+  </div>`;
+}
+
+function palletDetailHTML(){
+  const p = state.scanTarget;
+  const nxt = nextState(p.state);
+  const flowHTML = FLOW.map((s,i)=>{
+    const active = s === p.state;
+    return `<div class="step ${active?'active':''}">${s}</div>` + (i<FLOW.length-1?'<span class="arrow">→</span>':'');
+  }).join('');
+  return `
+  <div class="screen">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div class="code-tag">${p.code}</div>
+        <div class="state-pill"><div class="d"></div>${p.state}</div>
+      </div>
+      <div class="product-title">${p.product}</div>
+      <div class="flow">${flowHTML}</div>
+      <div class="meta-row"><span>Cantidad</span><span>${p.qty}</span></div>
+      <div class="meta-row"><span>Ubicación</span><span>${p.location}</span></div>
+      <div class="meta-row"><span>Operador</span><span>${state.worker.name}</span></div>
+    </div>
+    <div class="btn-row">
+      <div class="btn red" data-go="discrepancy">REPORTAR FALLO</div>
+      <div class="btn amber" data-action="advance">${p.state==='Entregado' ? 'YA ENTREGADO' : 'AVANZAR A ' + nxt}</div>
+    </div>
+    <div class="btn-row"><div class="btn ghost" data-go="menu">VOLVER AL MENÚ</div></div>
+  </div>`;
+}
+
+function discrepancyHTML(){
+  const p = state.scanTarget;
+  return `
+  <div class="screen">
+    <div class="card">
+      <div class="code-tag">${p.code}</div>
+      <div class="product-title">REPORTAR DIFERENCIA</div>
+      <p style="color:var(--muted);font-size:13px;margin-top:8px;">El sistema indica: <strong style="color:var(--text)">${p.product} (${p.qty})</strong></p>
+    </div>
+    <div class="field">
+      <label>Describe el problema encontrado</label>
+      <input id="disc-note" placeholder="Ej: Faltan 5 cajas, pallet dañado..." />
+    </div>
+    <div class="btn-row">
+      <div class="btn ghost" data-go="pallet-detail">CANCELAR</div>
+      <div class="btn red" data-action="submit-disc">GUARDAR REPORTE</div>
+    </div>
+  </div>`;
+}
+
+function createPalletHTML(prefillCode, prefillProduct){
+  return `
+  <div class="screen">
+    <div class="section-title">${prefillCode ? 'REGISTRAR: ' + prefillCode : 'NUEVO PALLET'}</div>
+    <div class="field"><label>Nombre del Producto</label><input id="f-product" placeholder="Ej: Cajas de arroz 1kg x20" value="${prefillProduct ? prefillProduct.replace(/"/g,'') : ''}" /></div>
+    <div class="field"><label>Cantidad / Unidades</label><input id="f-qty" placeholder="Ej: 50 unidades" /></div>
+    <div class="field"><label>Ubicación física</label><input id="f-loc" placeholder="Ej: Pasillo 4 - Nivel 2" /></div>
+    <div class="btn-row">
+      <div class="btn ghost" data-go="menu">CANCELAR</div>
+      <div class="btn amber" data-action="create" data-code="${prefillCode||''}">GUARDAR PALLET</div>
+    </div>
+  </div>`;
+}
+
+function palletCreatedHTML(){
+  const p = state.scanTarget;
+  return `
+  <div class="screen">
+    <div class="card" style="text-align:center;">
+      <div class="state-pill" style="margin-bottom:12px;background:var(--text);color:#fff;"><div class="d" style="background:#fff;"></div>REGISTRO EXITOSO</div>
+      <div class="product-title">${p.product}</div>
+      <div class="code-tag" style="font-size:16px;margin:8px 0;">${p.code}</div>
+      <div class="qr-box" id="qr-target" style="margin-top:16px;"></div>
+      <p style="color:var(--muted);font-size:12px;margin-top:12px;text-transform:uppercase;letter-spacing:0.05em;">Imprime y pega en el pallet</p>
+    </div>
+    <div class="btn-row"><div class="btn amber" data-go="menu">FINALIZAR</div></div>
+  </div>`;
+}
+
+function historyHTML(){
+  if(state.movements.length === 0){
+    return `<div class="screen"><div class="backrow" data-go="menu">‹ VOLVER</div><div class="empty">Buscando movimientos en la nube...</div></div>`;
+  }
+  const items = state.movements.slice(0,50).map(m => `
+    <div class="hist-item ${m.discrepancy?'disc':''}">
+      <div class="l">
+        <div class="code">${m.palletId}</div>
+        <div class="prod">${m.product}</div>
+        <div class="who">${m.worker} · ${m.discrepancy ? 'DIFERENCIA REPORTADA' : m.from + ' → ' + m.to}</div>
+      </div>
+      <div class="r">${fmtTime(m.timestamp)}</div>
+    </div>`).join('');
+  return `
+  <div class="screen">
+    <div class="backrow" data-go="menu">‹ VOLVER AL MENÚ</div>
+    <div class="section-title" style="margin-bottom:8px;">HISTORIAL RECIENTE</div>
+    ${items}
+  </div>`;
+}
+
+function toastHTML(){
+  const t = state.toast;
+  return `
+  <div class="toast-wrap">
+    <div class="toast ${t.kind}">
+      <div class="icon">${t.kind==='ok' ? '✓' : '⚠'}</div>
+      <h3>${t.title}</h3>
+      <p>${t.sub}</p>
+    </div>
+  </div>`;
+}
+
+function wireEvents(){
+  document.querySelectorAll('[data-key]').forEach(el=>{ el.onclick = ()=> pressKey(el.getAttribute('data-key')); });
+  document.querySelectorAll('[data-back]').forEach(el=>{ el.onclick = backspace; });
+  document.querySelectorAll('[data-go]').forEach(el=>{
+    el.onclick = ()=>{
+      const target = el.getAttribute('data-go');
+      if(target === 'create-with-code'){
+        window.__prefillCode = state.scannedCodeUnknown;
+        window.__prefillProduct = state.publicLookup ? state.publicLookup.name : null;
+        go('create-pallet');
+        return;
+      }
+      if(target === 'create-pallet'){
+        window.__prefillCode = null;
+        window.__prefillProduct = null;
+      }
+      if(state.screen === 'scan') stopScanner();
+      go(target);
+      if(target === 'scan') startScanner();
+    };
+  });
+  document.querySelectorAll('[data-logout]').forEach(el=>{ el.onclick = logout; });
+  const manualBtn = document.querySelector('[data-manual]');
+  if(manualBtn) manualBtn.onclick = manualSubmit;
+
+  const advanceBtn = document.querySelector('[data-action="advance"]');
+  if(advanceBtn) advanceBtn.onclick = confirmAdvance;
+
+  const retryCamBtn = document.querySelector('[data-action="retry-cam"]');
+  if(retryCamBtn) retryCamBtn.onclick = startScanner;
+
+  const submitDisc = document.querySelector('[data-action="submit-disc"]');
+  if(submitDisc) submitDisc.onclick = ()=>{
+    const note = document.getElementById('disc-note').value.trim();
+    submitDiscrepancy(note);
+  };
+
+  const createBtn = document.querySelector('[data-action="create"]');
+  if(createBtn) createBtn.onclick = ()=> createPallet(window.__prefillCode || null);
+
+  if(state.screen === 'pallet-created'){
+    setTimeout(()=>{
+      const el = document.getElementById('qr-target');
+      if(el && typeof QRCode !== 'undefined'){
+        el.innerHTML='';
+        new QRCode(el, {text: state.scanTarget.code, width:150, height:150, colorDark : "#18181b", colorLight : "#ffffff"});
+      }
+    }, 30);
+  }
+}
+
+// INICIALIZACIÓN DIRECTA (Ya no necesita await envolvente)
+loadDB();
+render();
+
+</script>
+</body>
+</html>
